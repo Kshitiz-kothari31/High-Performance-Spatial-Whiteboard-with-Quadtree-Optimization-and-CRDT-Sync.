@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
   font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 15px;
   line-height: 1.5;
   font-weight: 400;
   background: #f4f1e8;
@@ -25,6 +26,11 @@ body,
   margin: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   min-height: 100vh;
 }
@@ -47,7 +53,7 @@ a {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 20px;
   background:
     radial-gradient(circle at top left, rgba(255, 214, 165, 0.7), transparent 36%),
     radial-gradient(circle at top right, rgba(130, 201, 255, 0.6), transparent 28%),
@@ -55,10 +61,10 @@ a {
 }
 
 .hero-card {
-  width: min(720px, 100%);
-  padding: 40px;
+  width: min(680px, 100%);
+  padding: 32px;
   border: 1px solid rgba(16, 34, 58, 0.14);
-  border-radius: 32px;
+  border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.76));
   box-shadow: 0 28px 80px rgba(16, 34, 58, 0.18);
   backdrop-filter: blur(22px);
@@ -66,7 +72,7 @@ a {
 
 .hero-card h1 {
   margin: 0 0 12px;
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(2.15rem, 5vw, 3.8rem);
   line-height: 0.98;
   letter-spacing: -0.06em;
 }
@@ -75,7 +81,7 @@ a {
   max-width: 54ch;
   margin-bottom: 28px;
   color: #59708c;
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 
 .eyebrow {
@@ -98,10 +104,10 @@ a {
 }
 
 .hero-form input {
-  min-height: 52px;
+  min-height: 48px;
   border: 1px solid rgba(16, 34, 58, 0.16);
   border-radius: 16px;
-  padding: 14px 16px;
+  padding: 12px 15px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--ink);
 }
@@ -115,9 +121,9 @@ a {
 .hero-actions button,
 .secondary-link,
 .secondary-button {
-  min-height: 48px;
-  padding: 0 18px;
-  border-radius: 16px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 14px;
   font-weight: 700;
 }
 
@@ -223,10 +229,10 @@ a {
 .floating-topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 68px;
-  padding: 12px 18px;
-  border-radius: 18px;
+  gap: 14px;
+  min-height: 60px;
+  padding: 10px 16px;
+  border-radius: 16px;
 }
 
 .floating-topbar h1,
@@ -236,13 +242,13 @@ a {
 }
 
 .floating-topbar h1 {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   line-height: 1.1;
 }
 
 .floating-topbar p {
   color: var(--muted);
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 600;
 }
 
@@ -289,15 +295,15 @@ a {
 }
 
 .icon-action {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   background: rgba(75, 103, 255, 0.1);
   color: var(--blue);
 }
 
 .cta-button {
-  min-height: 44px;
-  padding: 0 18px;
+  min-height: 40px;
+  padding: 0 16px;
   background: var(--blue);
   color: white;
   font-weight: 800;
@@ -307,9 +313,9 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 16px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 14px;
   color: var(--ink);
   font-weight: 800;
   background: rgba(75, 103, 255, 0.08);
@@ -326,8 +332,8 @@ a {
 }
 
 .avatar-chip {
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
@@ -345,8 +351,8 @@ a {
 .floating-rail {
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border-radius: 22px;
+  padding: 10px;
+  border-radius: 20px;
   align-content: start;
   z-index: 4;
 }
@@ -359,24 +365,24 @@ a {
 .floating-rail--secondary {
   top: 132px;
   left: 100px;
-  width: 164px;
+  width: 156px;
   max-height: calc(100vh - 220px);
-  padding: 16px 14px;
+  padding: 14px 12px;
   justify-items: stretch;
   overflow-y: auto;
 }
 
 .rail-button {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   color: var(--ink);
   background: transparent;
   border: 1px solid transparent;
 }
 
 .rail-button--compact {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
 }
 
 .rail-title {
@@ -396,9 +402,9 @@ a {
 
 .rail-button--card {
   width: 100%;
-  min-height: 84px;
+  min-height: 76px;
   height: auto;
-  padding: 12px 8px 10px;
+  padding: 10px 8px 9px;
   display: grid;
   gap: 6px;
   justify-items: center;
@@ -443,7 +449,7 @@ a {
   display: grid;
   gap: 8px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 9px 11px;
   border-radius: 18px;
   background: rgba(32, 36, 49, 0.04);
   color: var(--muted);
@@ -465,7 +471,7 @@ a {
   display: grid;
   gap: 10px;
   width: 100%;
-  padding: 12px;
+  padding: 10px;
   border-radius: 18px;
   background: rgba(75, 103, 255, 0.06);
 }
@@ -488,8 +494,8 @@ a {
 }
 
 .color-dot {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
   border: 2px solid rgba(32, 36, 49, 0.12);
 }
@@ -503,8 +509,8 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px;
-  border-radius: 18px;
+  padding: 8px;
+  border-radius: 16px;
 }
 
 .floating-dock--left {
@@ -519,8 +525,8 @@ a {
 
 .dock-button,
 .zoom-readout {
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
   background: white;
   color: var(--ink);
 }
@@ -531,7 +537,7 @@ a {
 }
 
 .zoom-readout {
-  width: 82px;
+  width: 74px;
   font-weight: 800;
 }
 
@@ -541,19 +547,19 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  padding: 8px 10px;
+  border-radius: 14px;
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 0 12px;
   border-radius: 999px;
   background: rgba(32, 36, 49, 0.08);
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
@@ -563,8 +569,8 @@ a {
 }
 
 .leave-link {
-  min-height: 38px;
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 8px 12px;
   border-radius: 12px;
   text-decoration: none;
   color: var(--ink);
@@ -582,9 +588,9 @@ a {
 
 .help-card {
   position: relative;
-  width: min(640px, calc(100vw - 32px));
-  padding: 24px;
-  border-radius: 28px;
+  width: min(600px, calc(100vw - 32px));
+  padding: 22px;
+  border-radius: 24px;
 }
 
 .help-card__header {
