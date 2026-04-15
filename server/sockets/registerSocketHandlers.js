@@ -378,6 +378,32 @@ module.exports = function registerSocketHandlers(io) {
       io.to(roomId).emit("board-action", createPayload(session, action));
     });
 
+    socket.on("board-action", async (payload = {}) => {
+      const roomId = socket.data.roomId;
+      const session = getRoomSession(roomId);
+
+      if (!roomId || !session) {
+        return;
+      }
+
+      // Sync the server items array
+      const action = payload.action || payload;
+      session.items = applyBoardAction(session.items, action);
+      
+      if (action.type !== "cursor-move") {
+        session.historyStack = [...session.historyStack, action];
+        session.redoStack = [];
+      }
+
+      // Broadcast to all clients in the room
+      io.to(roomId).emit("board-action", createPayload(session, action));
+      
+      // Persist if it's a significant change
+      if (action.type !== "cursor-move") {
+        await persistRoomState(roomId);
+      }
+    });
+
     socket.on("cursor-move", (payload = {}) => {
       const roomId = socket.data.roomId;
       const session = getRoomSession(roomId);

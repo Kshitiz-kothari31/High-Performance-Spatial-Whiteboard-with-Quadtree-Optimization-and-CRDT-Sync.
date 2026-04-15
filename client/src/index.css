@@ -188,30 +188,37 @@ a {
 
 .cursor-badge {
   position: absolute;
+  top: 0;
+  left: 0;
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transform: translate(10px, 10px);
+  flex-direction: column;
+  align-items: flex-start;
+  will-change: transform;
+  transition: transform 32ms linear;
+  pointer-events: none;
 }
 
-.cursor-pointer {
-  width: 11px;
-  height: 11px;
-  border-radius: 999px;
-  background: var(--blue);
-  box-shadow: 0 0 0 4px rgba(75, 103, 255, 0.18);
+.cursor-pointer-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-4px, -4px); /* Center anchor point */
+  z-index: 10;
 }
 
 .cursor-name {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(32, 36, 49, 0.88);
   color: white;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  transform: translate(16px, 20px);
+  z-index: 11;
 }
 
 .floating-topbar,
@@ -266,6 +273,15 @@ a {
 .floating-topbar--right {
   top: 16px;
   right: 16px;
+}
+
+.history-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 14px;
+  margin-right: 14px;
+  border-right: 1px solid var(--panel-border);
 }
 
 .icon-action,
@@ -370,6 +386,24 @@ a {
   padding: 14px 12px;
   justify-items: stretch;
   overflow-y: auto;
+}
+
+.floating-rail--secondary::-webkit-scrollbar {
+  width: 6px;
+}
+
+.floating-rail--secondary::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 10px 0;
+}
+
+.floating-rail--secondary::-webkit-scrollbar-thumb {
+  background: rgba(32, 36, 49, 0.15);
+  border-radius: 6px;
+}
+
+.floating-rail--secondary::-webkit-scrollbar-thumb:hover {
+  background: rgba(32, 36, 49, 0.25);
 }
 
 .rail-button {
@@ -580,17 +614,20 @@ a {
 
 .help-modal {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(24, 28, 42, 0.18);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
 }
 
 .help-card {
   position: relative;
-  width: min(600px, calc(100vw - 32px));
-  padding: 22px;
+  width: min(580px, calc(100vw - 32px));
+  padding: 36px 40px;
   border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 16px 48px rgba(24, 28, 42, 0.12);
+  border: 1px solid rgba(24, 28, 42, 0.05);
 }
 
 .help-card__header {
@@ -598,22 +635,26 @@ a {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 24px;
 }
 
 .help-card h2 {
   margin: 0;
   font-size: 1.8rem;
   letter-spacing: -0.04em;
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .help-list {
-  margin: 18px 0 0;
-  padding-left: 18px;
+  margin: 0;
+  padding-left: 20px;
   color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .help-list li + li {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 @media (max-width: 1100px) {

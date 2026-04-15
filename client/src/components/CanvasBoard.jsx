@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-
+import { useEffect, useRef, useState } from "react";
 import {
   clampZoom,
   drawBoardItem,
@@ -8,6 +7,7 @@ import {
   getItemBounds,
   hitTestItem,
   screenToWorld,
+  worldToScreen,
   translateItem,
   zoomViewportAtPoint,
 } from "../lib/boardUtils";
@@ -72,16 +72,31 @@ export default function CanvasBoard({
   selectedItemId,
   dispatch,
   apiRef,
+  onDraw,
 }) {
   const boardRef = useRef(null);
   const canvasRef = useRef(null);
   const renderFrameRef = useRef(null);
+  const [boardSize, setBoardSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef({ width: 0, height: 0 });
   const draftItemRef = useRef(null);
   const previewMoveRef = useRef(null);
   const remoteStrokesRef = useRef(new Map());
   const interactionRef = useRef(null);
   const erasedIdsRef = useRef(new Set());
+  
+  const [editingText, setEditingText] = useState(null);
+  const editingTextRef = useRef(null);
+  const textAreaRef = useRef(null);
+
+  useEffect(() => {
+    if (editingText && textAreaRef.current) {
+      const timer = setTimeout(() => {
+        textAreaRef.current?.focus();
+      }, 30);
+      return () => clearTimeout(timer);
+    }
+  }, [editingText]);
 
   const emitCursorMove = useThrottle((point) => {
     socket?.emit("cursor-move", point);
@@ -118,7 +133,7 @@ export default function CanvasBoard({
       context.translate(viewport.x, viewport.y);
       context.scale(viewport.scale, viewport.scale);
 
-      items.forEach((item) => drawBoardItem(context, item));
+      console.log('Rendering items:', items); items.forEach((item) => drawBoardItem(context, item));
       remoteStrokesRef.current.forEach((item) => drawBoardItem(context, item));
 
       if (draftItemRef.current) {
@@ -169,6 +184,10 @@ export default function CanvasBoard({
         width: bounds.width,
         height: bounds.height,
       };
+      setBoardSize({
+        width: bounds.width,
+        height: bounds.height,
+      });
 
       canvas.width = Math.floor(bounds.width * devicePixelRatio);
       canvas.height = Math.floor(bounds.height * devicePixelRatio);
@@ -284,7 +303,11 @@ export default function CanvasBoard({
   }
 
   function commitCreate(item) {
-    socket?.emit("create-item", { item });
+    if (onDraw) {
+      onDraw(item);
+    } else {
+      socket?.emit("create-item", { item });
+    }
   }
 
   function commitUpdate(previousItem, nextItem) {
@@ -311,44 +334,85 @@ export default function CanvasBoard({
     commitDelete(target);
   }
 
-  function startTextPlacement(worldPoint, kind) {
-    const promptMessage =
-      kind === "sticky" ? "Write the sticky note text:" : "Write the text to place on the board:";
-    const text = window.prompt(promptMessage, kind === "sticky" ? "Idea title" : "Heading");
+  function startTextPlacement(worldPoint, kind, existingItem = null) {
+    const newState = { 
+      worldPoint: existingItem ? { x: existingItem.x, y: existingItem.y } : worldPoint, 
+      kind, 
+      text: existingItem ? existingItem.text : "",
+      originalItem: existingItem,
+      token: crypto.randomUUID()
+    };
+    setEditingText(newState);
+    editingTextRef.current = newState;
+  }
 
-    if (!text?.trim()) {
+  function finishTextPlacement(tokenToFinish) {
+    const current = editingTextRef.current;
+    if (!current) return;
+    if (tokenToFinish && current.token !== tokenToFinish) return;
+    
+    editingTextRef.current = null;
+    setEditingText(null);
+
+    const { worldPoint, kind, text, originalItem } = current;
+
+    if (!text.trim()) {
+      if (originalItem) {
+        commitDelete(originalItem);
+      }
       return;
     }
 
+    const finalId = originalItem ? originalItem.id : `${user.id}-${crypto.randomUUID()}`;
     const item =
       kind === "sticky"
         ? {
-            id: `${user.id}-${crypto.randomUUID()}`,
+            id: finalId,
             kind: "sticky",
             x: worldPoint.x,
             y: worldPoint.y,
             width: 220,
             height: 180,
-            color,
+            color: originalItem ? originalItem.color : color,
             text: text.trim(),
             userId: user.id,
           }
         : {
-            id: `${user.id}-${crypto.randomUUID()}`,
+            id: finalId,
             kind: "text",
             x: worldPoint.x,
             y: worldPoint.y,
-            color,
-            fontSize: Math.max(18, brushSize * 5),
+            color: originalItem ? originalItem.color : color,
+            fontSize: originalItem ? originalItem.fontSize : Math.max(18, brushSize * 5),
             text: text.trim(),
             userId: user.id,
           };
 
-    commitCreate(item);
+    if (originalItem) {
+      commitUpdate(originalItem, item);
+    } else {
+      commitCreate(item);
+    }
     dispatch({ type: "SET_SELECTED_ITEM", payload: item.id });
   }
 
+  function cancelTextPlacement() {
+    editingTextRef.current = null;
+    setEditingText(null);
+  }
+
+  function updateEditingText(newText) {
+    if (editingTextRef.current) {
+        editingTextRef.current.text = newText;
+        setEditingText({ ...editingTextRef.current });
+    }
+  }
+
   function handlePointerDown(event) {
+    if (editingText) {
+      finishTextPlacement(editingText.token);
+    }
+
     if (!socket || !user) {
       return;
     }
@@ -510,10 +574,15 @@ export default function CanvasBoard({
       draftItemRef.current = null;
 
       if (nextStroke.points.length > 1) {
-        socket.emit("draw", {
-          phase: "end",
-          stroke: nextStroke,
-        });
+        // UPDATE: Route through onDraw for CRDT indexing
+        if (onDraw) {
+          onDraw(nextStroke);
+        } else {
+          socket.emit("draw", {
+            phase: "end",
+            stroke: nextStroke,
+          });
+        }
       }
 
       scheduleRender();
@@ -573,6 +642,17 @@ export default function CanvasBoard({
     emitViewport(zoomViewportAtPoint(viewport, nextScale, anchorPoint));
   }
 
+  function handleDoubleClick(event) {
+    if (!socket || !user) return;
+    const screenPoint = getCanvasPoint(event, canvasRef.current);
+    const worldPoint = screenToWorld(screenPoint, viewport);
+    const target = getTopItemAtPoint(items, worldPoint);
+
+    if (target && (target.kind === "text" || target.kind === "sticky")) {
+      startTextPlacement(worldPoint, target.kind, target);
+    }
+  }
+
   return (
     <div className="board-surface" ref={boardRef}>
       <canvas
@@ -584,13 +664,56 @@ export default function CanvasBoard({
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
       />
       <CursorOverlay
         cursors={cursors}
         viewport={viewport}
-        boardSize={sizeRef.current}
+        boardSize={boardSize}
         currentUserId={user?.id}
       />
+      {editingText && (
+        <textarea
+          ref={textAreaRef}
+          value={editingText.text}
+          onChange={(e) => updateEditingText(e.target.value)}
+          onBlur={() => finishTextPlacement(editingText.token)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              finishTextPlacement(editingText.token);
+            } else if (e.key === "Escape") {
+              cancelTextPlacement();
+            }
+          }}
+          style={{
+            position: "absolute",
+            left: worldToScreen(editingText.worldPoint, viewport).x,
+            top: worldToScreen(editingText.worldPoint, viewport).y,
+            transform: `scale(${viewport.scale})`,
+            transformOrigin: "top left",
+            padding: editingText.kind === "sticky" ? "36px 18px 18px 18px" : "8px",
+            marginTop: editingText.kind === "text" ? `-${Math.max(18, brushSize * 5)}px` : "0",
+            marginLeft: editingText.kind === "text" ? "-8px" : "0",
+            width: editingText.kind === "sticky" ? "220px" : "300px",
+            height: editingText.kind === "sticky" ? "180px" : "150px",
+            fontSize: editingText.kind === "sticky" ? "22px" : `${Math.max(18, brushSize * 5)}px`,
+            fontWeight: 700,
+            fontFamily: `"Avenir Next", "Segoe UI", sans-serif`,
+            color: editingText.kind === "sticky" ? "#2B2F3A" : color,
+            background: editingText.kind === "sticky" ? color : "rgba(255, 255, 255, 0.9)",
+            boxShadow: editingText.kind === "sticky" ? "0 10px 22px rgba(23, 31, 56, 0.08)" : "0 4px 12px rgba(0,0,0,0.1)",
+            border: editingText.kind === "text" ? `2px solid var(--blue)` : "none",
+            borderRadius: editingText.kind === "sticky" ? "24px" : "8px",
+            outline: "none",
+            resize: editingText.kind === "text" ? "both" : "none",
+            zIndex: 100,
+            whiteSpace: "pre-wrap",
+            lineHeight: editingText.kind === "sticky" ? "28px" : "1.28",
+          }}
+          placeholder={editingText.kind === "sticky" ? "Write the sticky note text..." : "Write text..."}
+        />
+      )}
     </div>
   );
 }
