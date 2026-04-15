@@ -395,8 +395,8 @@ module.exports = function registerSocketHandlers(io) {
         session.redoStack = [];
       }
 
-      // Broadcast to all clients in the room
-      io.to(roomId).emit("board-action", createPayload(session, action));
+      // Broadcast to all other clients in the room
+      socket.to(roomId).emit("board-action", createPayload(session, action));
       
       // Persist if it's a significant change
       if (action.type !== "cursor-move") {

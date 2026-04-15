@@ -79,6 +79,7 @@ export default function CanvasBoard({
   const renderFrameRef = useRef(null);
   const [boardSize, setBoardSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef({ width: 0, height: 0 });
+  const committedIdRef = useRef(null);
   const draftItemRef = useRef(null);
   const previewMoveRef = useRef(null);
   const remoteStrokesRef = useRef(new Map());
@@ -126,14 +127,13 @@ export default function CanvasBoard({
       const context = canvas.getContext("2d");
       const { width, height } = sizeRef.current;
 
-      context.clearRect(0, 0, width, height);
       drawGrid(context, width, height, viewport);
 
       context.save();
       context.translate(viewport.x, viewport.y);
       context.scale(viewport.scale, viewport.scale);
 
-      console.log('Rendering items:', items); items.forEach((item) => drawBoardItem(context, item));
+      items.forEach((item) => drawBoardItem(context, item));
       remoteStrokesRef.current.forEach((item) => drawBoardItem(context, item));
 
       if (draftItemRef.current) {
@@ -160,6 +160,12 @@ export default function CanvasBoard({
   }
 
   useEffect(() => {
+    // Cleanup draft item once it has been successfully added to the items array
+    if (draftItemRef.current && items.some(it => it.id === draftItemRef.current?.id)) {
+      draftItemRef.current = null;
+      committedIdRef.current = null;
+    }
+
     for (const item of items) {
       remoteStrokesRef.current.delete(item.id);
     }
@@ -571,10 +577,9 @@ export default function CanvasBoard({
         points: [...draftItemRef.current.points, worldPoint],
       };
 
-      draftItemRef.current = null;
-
       if (nextStroke.points.length > 1) {
-        // UPDATE: Route through onDraw for CRDT indexing
+        committedIdRef.current = nextStroke.id;
+        // Optimistic UI: draft stays until it appears in 'items'
         if (onDraw) {
           onDraw(nextStroke);
         } else {
@@ -596,9 +601,8 @@ export default function CanvasBoard({
         end: worldPoint,
       };
 
-      draftItemRef.current = null;
-
       if (bounds.width > 12 || bounds.height > 12) {
+        // draftItemRef.current = null; // MOVE THIS
         commitCreate(nextShape);
         dispatch({ type: "SET_SELECTED_ITEM", payload: nextShape.id });
       }
