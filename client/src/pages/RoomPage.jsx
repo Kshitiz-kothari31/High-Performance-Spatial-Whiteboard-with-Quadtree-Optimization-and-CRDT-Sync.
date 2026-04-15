@@ -377,6 +377,7 @@ export default function RoomPage() {
           <div className="palette-group">
             <span className="palette-title">Colors</span>
             <div className="swatch-column">
+               {swatches.map(color => (
                  <button 
                    key={color} 
                    type="button" 
