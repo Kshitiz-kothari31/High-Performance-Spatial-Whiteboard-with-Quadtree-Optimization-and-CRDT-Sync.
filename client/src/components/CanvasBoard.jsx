@@ -79,13 +79,12 @@ export default function CanvasBoard({
   const renderFrameRef = useRef(null);
   const [boardSize, setBoardSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef({ width: 0, height: 0 });
-  const committedIdRef = useRef(null);
   const draftItemRef = useRef(null);
   const previewMoveRef = useRef(null);
   const remoteStrokesRef = useRef(new Map());
   const interactionRef = useRef(null);
   const erasedIdsRef = useRef(new Set());
-  
+
   const [editingText, setEditingText] = useState(null);
   const editingTextRef = useRef(null);
   const textAreaRef = useRef(null);
@@ -113,7 +112,7 @@ export default function CanvasBoard({
 
   function scheduleRender() {
     if (renderFrameRef.current) {
-      return;
+      window.cancelAnimationFrame(renderFrameRef.current);
     }
 
     renderFrameRef.current = window.requestAnimationFrame(() => {
@@ -160,14 +159,12 @@ export default function CanvasBoard({
   }
 
   useEffect(() => {
-    // Cleanup draft item once it has been successfully added to the items array
-    if (draftItemRef.current && items.some(it => it.id === draftItemRef.current?.id)) {
-      draftItemRef.current = null;
-      committedIdRef.current = null;
-    }
-
     for (const item of items) {
       remoteStrokesRef.current.delete(item.id);
+
+      if (draftItemRef.current && draftItemRef.current.id === item.id) {
+        draftItemRef.current = null;
+      }
     }
 
     scheduleRender();
@@ -341,9 +338,9 @@ export default function CanvasBoard({
   }
 
   function startTextPlacement(worldPoint, kind, existingItem = null) {
-    const newState = { 
-      worldPoint: existingItem ? { x: existingItem.x, y: existingItem.y } : worldPoint, 
-      kind, 
+    const newState = {
+      worldPoint: existingItem ? { x: existingItem.x, y: existingItem.y } : worldPoint,
+      kind,
       text: existingItem ? existingItem.text : "",
       originalItem: existingItem,
       token: crypto.randomUUID()
@@ -356,7 +353,7 @@ export default function CanvasBoard({
     const current = editingTextRef.current;
     if (!current) return;
     if (tokenToFinish && current.token !== tokenToFinish) return;
-    
+
     editingTextRef.current = null;
     setEditingText(null);
 
@@ -373,26 +370,26 @@ export default function CanvasBoard({
     const item =
       kind === "sticky"
         ? {
-            id: finalId,
-            kind: "sticky",
-            x: worldPoint.x,
-            y: worldPoint.y,
-            width: 220,
-            height: 180,
-            color: originalItem ? originalItem.color : color,
-            text: text.trim(),
-            userId: user.id,
-          }
+          id: finalId,
+          kind: "sticky",
+          x: worldPoint.x,
+          y: worldPoint.y,
+          width: 220,
+          height: 180,
+          color: originalItem ? originalItem.color : color,
+          text: text.trim(),
+          userId: user.id,
+        }
         : {
-            id: finalId,
-            kind: "text",
-            x: worldPoint.x,
-            y: worldPoint.y,
-            color: originalItem ? originalItem.color : color,
-            fontSize: originalItem ? originalItem.fontSize : Math.max(18, brushSize * 5),
-            text: text.trim(),
-            userId: user.id,
-          };
+          id: finalId,
+          kind: "text",
+          x: worldPoint.x,
+          y: worldPoint.y,
+          color: originalItem ? originalItem.color : color,
+          fontSize: originalItem ? originalItem.fontSize : Math.max(18, brushSize * 5),
+          text: text.trim(),
+          userId: user.id,
+        };
 
     if (originalItem) {
       commitUpdate(originalItem, item);
@@ -409,8 +406,8 @@ export default function CanvasBoard({
 
   function updateEditingText(newText) {
     if (editingTextRef.current) {
-        editingTextRef.current.text = newText;
-        setEditingText({ ...editingTextRef.current });
+      editingTextRef.current.text = newText;
+      setEditingText({ ...editingTextRef.current });
     }
   }
 
@@ -529,21 +526,36 @@ export default function CanvasBoard({
     }
 
     if (interactionRef.current.type === "draw" && draftItemRef.current) {
-      const previousPoint = draftItemRef.current.points[draftItemRef.current.points.length - 1];
-      const distance =
-        Math.abs(previousPoint.x - worldPoint.x) + Math.abs(previousPoint.y - worldPoint.y);
+      const nativeEvent = event.nativeEvent;
+      let events = nativeEvent?.getCoalescedEvents ? nativeEvent.getCoalescedEvents() : [];
+      if (events.length === 0) {
+        events = [nativeEvent || event];
+      }
+      const newPoints = [];
 
-      if (distance < 1.2) {
-        return;
+      let lastPoint = draftItemRef.current.points[draftItemRef.current.points.length - 1];
+
+      for (const e of events) {
+        const eScreenPoint = getCanvasPoint(e, canvasRef.current);
+        const eWorldPoint = screenToWorld(eScreenPoint, viewport);
+        const distance = Math.abs(lastPoint.x - eWorldPoint.x) + Math.abs(lastPoint.y - eWorldPoint.y);
+
+        if (distance >= 0.8) {
+          newPoints.push(eWorldPoint);
+          lastPoint = eWorldPoint;
+        }
       }
 
-      draftItemRef.current = {
-        ...draftItemRef.current,
-        points: [...draftItemRef.current.points, worldPoint],
-      };
+      if (newPoints.length > 0) {
+        draftItemRef.current = {
+          ...draftItemRef.current,
+          points: [...draftItemRef.current.points, ...newPoints],
+        };
 
-      emitDrawPoint(draftItemRef.current.id, worldPoint);
-      scheduleRender();
+        const finalPoint = newPoints[newPoints.length - 1];
+        emitDrawPoint(draftItemRef.current.id, finalPoint);
+        scheduleRender();
+      }
       return;
     }
 
@@ -577,8 +589,9 @@ export default function CanvasBoard({
         points: [...draftItemRef.current.points, worldPoint],
       };
 
+
       if (nextStroke.points.length > 1) {
-        committedIdRef.current = nextStroke.id;
+        draftItemRef.current = nextStroke;
         // Optimistic UI: draft stays until it appears in 'items'
         if (onDraw) {
           onDraw(nextStroke);
@@ -588,6 +601,8 @@ export default function CanvasBoard({
             stroke: nextStroke,
           });
         }
+      } else {
+        draftItemRef.current = null;
       }
 
       scheduleRender();
@@ -602,9 +617,11 @@ export default function CanvasBoard({
       };
 
       if (bounds.width > 12 || bounds.height > 12) {
-        // draftItemRef.current = null; // MOVE THIS
+        draftItemRef.current = nextShape;
         commitCreate(nextShape);
         dispatch({ type: "SET_SELECTED_ITEM", payload: nextShape.id });
+      } else {
+        draftItemRef.current = null;
       }
 
       scheduleRender();

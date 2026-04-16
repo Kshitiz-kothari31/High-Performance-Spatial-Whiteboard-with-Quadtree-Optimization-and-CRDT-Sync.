@@ -48,13 +48,13 @@ function whiteboardReducer(state, action) {
     case "HYDRATE_ROOM":
       return {
         ...state,
-        roomId: action.payload.roomId,
-        items: action.payload.items,
-        historyCount: action.payload.historyCount,
-        redoCount: action.payload.redoCount,
-        participants: action.payload.participants,
-        cursors: action.payload.cursors,
-        savedAt: action.payload.savedAt,
+        roomId: action.payload.roomId ?? state.roomId,
+        items: action.payload.items ?? state.items,
+        historyCount: action.payload.historyCount ?? state.historyCount,
+        redoCount: action.payload.redoCount ?? state.redoCount,
+        participants: action.payload.participants ?? state.participants,
+        cursors: action.payload.cursors ?? state.cursors,
+        savedAt: action.payload.savedAt !== undefined ? action.payload.savedAt : state.savedAt,
         hydrated: true,
       };
     case "APPLY_BOARD_ACTION":

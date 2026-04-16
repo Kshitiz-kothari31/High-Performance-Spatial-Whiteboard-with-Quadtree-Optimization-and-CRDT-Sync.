@@ -112,7 +112,7 @@ export default function RoomPage() {
       const position = item.fractionalPosition || [50];
       position.forEach(val => vectorPos.push_back(val));
       
-      instance.addElement(item.id, vectorPos, item.userId, JSON.stringify(item));
+      instance.addElement(item.id, vectorPos, item.userId, item);
       vectorPos.delete();
     } else if (action.type === "delete-item") {
       instance.deleteElement(item.id);
@@ -120,15 +120,14 @@ export default function RoomPage() {
       instance.clearBoard();
     }
 
-    const orderedItems = JSON.parse(instance.getOrderedElements());
+    const orderedItems = instance.getOrderedElements();
 
     dispatch({
       type: "HYDRATE_ROOM",
       payload: {
-        ...stateRef.current,
         items: orderedItems,
-        historyCount: payload.historyCount || stateRef.current.historyCount,
-        redoCount: payload.redoCount || stateRef.current.redoCount
+        historyCount: payload.historyCount,
+        redoCount: payload.redoCount
       }
     });
 
@@ -153,7 +152,7 @@ export default function RoomPage() {
         payload.items.forEach(item => {
           const v = new Module.VectorInt();
           (item.fractionalPosition || [50]).forEach(val => v.push_back(val));
-          instance.addElement(item.id, v, item.userId, JSON.stringify(item));
+          instance.addElement(item.id, v, item.userId, item);
           v.delete();
         });
       }
@@ -172,6 +171,7 @@ export default function RoomPage() {
       dispatch({ type: "UPSERT_CURSOR", payload: p });
     };
     const handleCursorLeft = (p) => dispatch({ type: "REMOVE_CURSOR", payload: p.userId });
+    const handleRoomSaved = (p) => dispatch({ type: "HYDRATE_ROOM", payload: { savedAt: p.savedAt } });
 
     socket.on("room-state", handleRoomState);
     socket.on("room-users", handleRoomUsers);
@@ -180,6 +180,7 @@ export default function RoomPage() {
     socket.on("redo", handleRedo);
     socket.on("cursor-move", handleCursorMove);
     socket.on("cursor-left", handleCursorLeft);
+    socket.on("room-saved", handleRoomSaved);
 
     return () => {
       socket.off("room-state", handleRoomState);
@@ -189,6 +190,7 @@ export default function RoomPage() {
       socket.off("redo", handleRedo);
       socket.off("cursor-move", handleCursorMove);
       socket.off("cursor-left", handleCursorLeft);
+      socket.off("room-saved", handleRoomSaved);
     };
   }, [isConnected, roomId, socket, user, handleBoardAction, wasmEngine, dispatch]);
 

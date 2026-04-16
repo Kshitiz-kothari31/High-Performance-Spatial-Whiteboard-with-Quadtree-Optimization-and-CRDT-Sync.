@@ -46,7 +46,7 @@ export class WhiteboardManager {
 
     addElement(id, vectorPos, uid, dataStr) {
         const pos = vectorPos.data;
-        
+
         // Upsert: Remove existing element with same ID if present
         this.elements = this.elements.filter(el => el.id !== id);
 
@@ -54,13 +54,13 @@ export class WhiteboardManager {
             id,
             fractionalPosition: pos,
             userId: uid,
-            shapeData: JSON.parse(dataStr),
+            shapeData: typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr,
             timestamp: 0
         };
 
         // Find insert position (lower_bound equivalent)
         const insertIt = this.elements.findIndex(el => this._compare(newItem, el) < 0);
-        
+
         if (insertIt === -1) {
             this.elements.push(newItem);
         } else {
@@ -76,14 +76,14 @@ export class WhiteboardManager {
         const p1 = v1.data || [];
         const p2 = v2.data || [];
         const resultArr = FractionalIndexer.generateIntermediate(p1, p2);
-        
+
         const result = new VectorInt();
         result.data = resultArr;
         return result;
     }
 
     getOrderedElements() {
-        return JSON.stringify(this.elements.map(el => el.shapeData));
+        return this.elements.map(el => el.shapeData);
     }
 
     clearBoard() {
@@ -112,7 +112,7 @@ export class WhiteboardManager {
 
         // 3. Item ID
         if (a.id !== b.id) {
-             return a.id < b.id ? -1 : 1;
+            return a.id < b.id ? -1 : 1;
         }
 
         return 0;

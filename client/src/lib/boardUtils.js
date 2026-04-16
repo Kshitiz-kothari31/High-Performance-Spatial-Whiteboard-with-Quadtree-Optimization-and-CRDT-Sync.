@@ -337,9 +337,17 @@ export function drawBoardItem(context, item) {
     context.beginPath();
     context.moveTo(item.points[0].x, item.points[0].y);
 
-    item.points.slice(1).forEach((point) => {
-      context.lineTo(point.x, point.y);
-    });
+    if (item.points.length === 2) {
+      context.lineTo(item.points[1].x, item.points[1].y);
+    } else {
+      let i = 1;
+      for (; i < item.points.length - 1; i++) {
+        const xc = (item.points[i].x + item.points[i + 1].x) / 2;
+        const yc = (item.points[i].y + item.points[i + 1].y) / 2;
+        context.quadraticCurveTo(item.points[i].x, item.points[i].y, xc, yc);
+      }
+      context.lineTo(item.points[i].x, item.points[i].y);
+    }
 
     context.stroke();
     context.restore();

@@ -99,6 +99,7 @@ function createPayload(session, action) {
     action,
     historyCount: session.historyStack.length,
     redoCount: session.redoStack.length,
+    participants: buildParticipants(session),
     savedAt: session.lastSavedAt,
   };
 }
@@ -224,13 +225,15 @@ module.exports = function registerSocketHandlers(io) {
         session.historyStack = [...session.historyStack, action];
         session.redoStack = [];
 
-        persistRoomState(roomId)
-          .then(() => {
-            io.to(roomId).emit("board-action", createPayload(session, action));
-          })
-          .catch((error) => {
-            console.error("persist draw failed", error);
-          });
+        // Broadcast immediately to all other clients
+        socket.to(roomId).emit("board-action", createPayload(session, action));
+
+        // Persist in the background
+        persistRoomState(roomId).then(() => {
+          io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+        }).catch((error) => {
+          console.error("persist draw failed", error);
+        });
       }
     });
 
@@ -252,13 +255,14 @@ module.exports = function registerSocketHandlers(io) {
       session.historyStack = [...session.historyStack, action];
       session.redoStack = [];
 
-      persistRoomState(roomId)
-        .then(() => {
-          io.to(roomId).emit("board-action", createPayload(session, action));
-        })
-        .catch((error) => {
-          console.error("persist create-item failed", error);
-        });
+      // Broadcast immediately
+      socket.to(roomId).emit("board-action", createPayload(session, action));
+
+      persistRoomState(roomId).then(() => {
+        io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+      }).catch((error) => {
+        console.error("persist create-item failed", error);
+      });
     });
 
     socket.on("update-item", (payload = {}) => {
@@ -280,13 +284,14 @@ module.exports = function registerSocketHandlers(io) {
       session.historyStack = [...session.historyStack, action];
       session.redoStack = [];
 
-      persistRoomState(roomId)
-        .then(() => {
-          io.to(roomId).emit("board-action", createPayload(session, action));
-        })
-        .catch((error) => {
-          console.error("persist update-item failed", error);
-        });
+      // Broadcast immediately
+      socket.to(roomId).emit("board-action", createPayload(session, action));
+
+      persistRoomState(roomId).then(() => {
+        io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+      }).catch((error) => {
+        console.error("persist update-item failed", error);
+      });
     });
 
     socket.on("delete-item", (payload = {}) => {
@@ -307,13 +312,14 @@ module.exports = function registerSocketHandlers(io) {
       session.historyStack = [...session.historyStack, action];
       session.redoStack = [];
 
-      persistRoomState(roomId)
-        .then(() => {
-          io.to(roomId).emit("board-action", createPayload(session, action));
-        })
-        .catch((error) => {
-          console.error("persist delete-item failed", error);
-        });
+      // Broadcast immediately
+      socket.to(roomId).emit("board-action", createPayload(session, action));
+
+      persistRoomState(roomId).then(() => {
+        io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+      }).catch((error) => {
+        console.error("persist delete-item failed", error);
+      });
     });
 
     socket.on("undo", async () => {
@@ -331,6 +337,7 @@ module.exports = function registerSocketHandlers(io) {
       session.items = revertBoardAction(session.items, action);
 
       await persistRoomState(roomId);
+      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
 
       io.to(roomId).emit("undo", createPayload(session, action));
     });
@@ -350,6 +357,7 @@ module.exports = function registerSocketHandlers(io) {
       session.items = applyBoardAction(session.items, action);
 
       await persistRoomState(roomId);
+      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
 
       io.to(roomId).emit("redo", createPayload(session, action));
     });
@@ -373,6 +381,7 @@ module.exports = function registerSocketHandlers(io) {
       session.activeStrokes.clear();
 
       await persistRoomState(roomId);
+      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
 
       io.to(roomId).emit("clear-canvas");
       io.to(roomId).emit("board-action", createPayload(session, action));
@@ -400,7 +409,9 @@ module.exports = function registerSocketHandlers(io) {
       
       // Persist if it's a significant change
       if (action.type !== "cursor-move") {
-        await persistRoomState(roomId);
+        persistRoomState(roomId).then(() => {
+          io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+        }).catch(err => console.error("persist board-action failed", err));
       }
     });
 
