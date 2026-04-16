@@ -73,6 +73,8 @@ export default function CanvasBoard({
   dispatch,
   apiRef,
   onDraw,
+  onUpdate,
+  onDelete,
 }) {
   const boardRef = useRef(null);
   const canvasRef = useRef(null);
@@ -88,6 +90,8 @@ export default function CanvasBoard({
   const [editingText, setEditingText] = useState(null);
   const editingTextRef = useRef(null);
   const textAreaRef = useRef(null);
+
+  const [cursorPos, setCursorPos] = useState({ x: -100, y: -100 });
 
   useEffect(() => {
     if (editingText && textAreaRef.current) {
@@ -314,11 +318,19 @@ export default function CanvasBoard({
   }
 
   function commitUpdate(previousItem, nextItem) {
-    socket?.emit("update-item", { previousItem, nextItem });
+    if (onUpdate) {
+      onUpdate(previousItem, nextItem);
+    } else {
+      socket?.emit("update-item", { previousItem, nextItem });
+    }
   }
 
   function commitDelete(item) {
-    socket?.emit("delete-item", { item });
+    if (onDelete) {
+      onDelete(item);
+    } else {
+      socket?.emit("delete-item", { item });
+    }
   }
 
   function deleteAtPoint(worldPoint) {
@@ -492,6 +504,13 @@ export default function CanvasBoard({
   function handlePointerMove(event) {
     const screenPoint = getCanvasPoint(event, canvasRef.current);
     const worldPoint = screenToWorld(screenPoint, viewport);
+
+    if (tool === "eraser") {
+      setCursorPos(screenPoint);
+      deleteAtPoint(worldPoint);
+    } else {
+      setCursorPos({ x: -100, y: -100 });
+    }
 
     emitCursorMove(worldPoint);
 
@@ -733,6 +752,20 @@ export default function CanvasBoard({
             lineHeight: editingText.kind === "sticky" ? "28px" : "1.28",
           }}
           placeholder={editingText.kind === "sticky" ? "Write the sticky note text..." : "Write text..."}
+        />
+      )}
+      {tool === "eraser" && (
+        <div 
+          className="eraser-cursor"
+          style={{
+            position: "absolute",
+            left: cursorPos.x,
+            top: cursorPos.y,
+            width: `${Math.max(20, brushSize * 5)}px`,
+            height: `${Math.max(20, brushSize * 5)}px`,
+            pointerEvents: "none",
+            zIndex: 999
+          }}
         />
       )}
     </div>

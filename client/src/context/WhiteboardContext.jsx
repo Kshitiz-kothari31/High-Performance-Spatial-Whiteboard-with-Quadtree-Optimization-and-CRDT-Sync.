@@ -50,8 +50,8 @@ function whiteboardReducer(state, action) {
         ...state,
         roomId: action.payload.roomId ?? state.roomId,
         items: action.payload.items ?? state.items,
-        historyCount: action.payload.historyCount ?? state.historyCount,
-        redoCount: action.payload.redoCount ?? state.redoCount,
+        historyCount: typeof action.payload.historyCount === "number" ? action.payload.historyCount : state.historyCount,
+        redoCount: typeof action.payload.redoCount === "number" ? action.payload.redoCount : state.redoCount,
         participants: action.payload.participants ?? state.participants,
         cursors: action.payload.cursors ?? state.cursors,
         savedAt: action.payload.savedAt !== undefined ? action.payload.savedAt : state.savedAt,
@@ -61,35 +61,14 @@ function whiteboardReducer(state, action) {
       return {
         ...state,
         items: applyBoardAction(state.items, action.payload.action),
-        historyCount: action.payload.historyCount,
-        redoCount: action.payload.redoCount,
-        savedAt: action.payload.savedAt,
+        historyCount: typeof action.payload.historyCount === "number" ? action.payload.historyCount : state.historyCount,
+        redoCount: typeof action.payload.redoCount === "number" ? action.payload.redoCount : state.redoCount,
+        savedAt: action.payload.savedAt !== undefined ? action.payload.savedAt : state.savedAt,
         selectedItemId:
           action.payload.action.type === "delete-item" &&
           state.selectedItemId === action.payload.action.item.id
             ? null
             : state.selectedItemId,
-      };
-    case "APPLY_UNDO":
-      return {
-        ...state,
-        items: revertBoardAction(state.items, action.payload.action),
-        historyCount: action.payload.historyCount,
-        redoCount: action.payload.redoCount,
-        savedAt: action.payload.savedAt,
-        selectedItemId:
-          action.payload.action.type === "create-item" &&
-          state.selectedItemId === action.payload.action.item.id
-            ? null
-            : state.selectedItemId,
-      };
-    case "APPLY_REDO":
-      return {
-        ...state,
-        items: applyBoardAction(state.items, action.payload.action),
-        historyCount: action.payload.historyCount,
-        redoCount: action.payload.redoCount,
-        savedAt: action.payload.savedAt,
       };
     case "SET_PARTICIPANTS":
       return {

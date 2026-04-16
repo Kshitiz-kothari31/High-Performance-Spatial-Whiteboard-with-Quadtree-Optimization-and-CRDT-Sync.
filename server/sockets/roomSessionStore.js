@@ -48,6 +48,7 @@ async function loadRoomSession(roomId) {
     activeStrokes: new Map(),
     users: new Map(),
     cursors: new Map(),
+    redoStacks: new Map(),
     lastSavedAt: room.updatedAt || new Date().toISOString(),
   };
 

@@ -94,11 +94,15 @@ function revertBoardAction(items, action) {
   return items;
 }
 
-function createPayload(session, action) {
+function createPayload(session, action, targetUserId) {
+  const history = session.historyStack || [];
+  const userHistory = targetUserId ? history.filter(a => a.senderId === targetUserId) : [];
+  const userRedo = targetUserId ? (session.redoStacks?.get(targetUserId) || []) : [];
+
   return {
     action,
-    historyCount: session.historyStack.length,
-    redoCount: session.redoStack.length,
+    historyCount: userHistory.length,
+    redoCount: userRedo.length,
     participants: buildParticipants(session),
     savedAt: session.lastSavedAt,
   };
@@ -325,41 +329,58 @@ module.exports = function registerSocketHandlers(io) {
     socket.on("undo", async () => {
       const roomId = socket.data.roomId;
       const session = getRoomSession(roomId);
+      const userId = socket.data.userId;
 
-      if (!roomId || !session || session.historyStack.length === 0) {
-        return;
+      if (!roomId || !session || !userId) return;
+
+      const history = session.historyStack || [];
+      let index = -1;
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].senderId === userId) {
+          index = i;
+          break;
+        }
       }
 
-      const action = session.historyStack[session.historyStack.length - 1];
+      if (index === -1) return;
 
-      session.historyStack = session.historyStack.slice(0, -1);
-      session.redoStack = [...session.redoStack, action];
+      const action = session.historyStack.splice(index, 1)[0];
+      
+      let userRedo = session.redoStacks.get(userId) || [];
+      userRedo.push(action);
+      session.redoStacks.set(userId, userRedo);
+
       session.items = revertBoardAction(session.items, action);
-
       await persistRoomState(roomId);
-      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
 
-      io.to(roomId).emit("undo", createPayload(session, action));
+      io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+
+      // Tell the sender their new counts
+      socket.emit("undo", createPayload(session, action, userId));
+      // Tell others about the action (they will recalculate counts based on their own perspective in handleBoardAction if needed, or we send specifically)
+      socket.broadcast.to(roomId).emit("undo", createPayload(session, action, null)); // null target doesn't update counts
     });
 
     socket.on("redo", async () => {
       const roomId = socket.data.roomId;
       const session = getRoomSession(roomId);
+      const userId = socket.data.userId;
 
-      if (!roomId || !session || session.redoStack.length === 0) {
-        return;
-      }
+      if (!roomId || !session || !userId) return;
 
-      const action = session.redoStack[session.redoStack.length - 1];
+      let userRedo = session.redoStacks.get(userId) || [];
+      if (userRedo.length === 0) return;
 
-      session.redoStack = session.redoStack.slice(0, -1);
-      session.historyStack = [...session.historyStack, action];
+      const action = userRedo.pop();
+      session.historyStack.push(action);
+
       session.items = applyBoardAction(session.items, action);
-
       await persistRoomState(roomId);
-      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
 
-      io.to(roomId).emit("redo", createPayload(session, action));
+      io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
+
+      socket.emit("redo", createPayload(session, action, userId));
+      socket.broadcast.to(roomId).emit("redo", createPayload(session, action, null));
     });
 
     socket.on("clear-canvas", async () => {
@@ -373,18 +394,21 @@ module.exports = function registerSocketHandlers(io) {
       const action = {
         type: "clear-board",
         items: session.items,
+        senderId: socket.data.userId
       };
 
       session.items = [];
       session.historyStack = [...session.historyStack, action];
-      session.redoStack = [];
-      session.activeStrokes.clear();
+      // Clear all redo stacks on a global clear? Or just the sender's? 
+      // Typically global clear makes previous redos irrelevant.
+      session.redoStacks.clear();
 
       await persistRoomState(roomId);
-      io.to(roomId).emit("room-saved", { savedAt: session.savedAt });
+      io.to(roomId).emit("room-saved", { savedAt: session.lastSavedAt });
 
       io.to(roomId).emit("clear-canvas");
-      io.to(roomId).emit("board-action", createPayload(session, action));
+      // Use socket.data.userId to get correct counts for the clearer
+      io.to(roomId).emit("board-action", createPayload(session, action, socket.data.userId));
     });
 
     socket.on("board-action", async (payload = {}) => {
@@ -396,16 +420,26 @@ module.exports = function registerSocketHandlers(io) {
       }
 
       // Sync the server items array
-      const action = payload.action || payload;
+      const action = { ...(payload.action || payload), senderId: socket.data.userId };
       session.items = applyBoardAction(session.items, action);
       
       if (action.type !== "cursor-move") {
         session.historyStack = [...session.historyStack, action];
-        session.redoStack = [];
+        // Clear only the sender's redo stack
+        session.redoStacks.set(socket.data.userId, []);
       }
 
-      // Broadcast to all other clients in the room
-      socket.to(roomId).emit("board-action", createPayload(session, action));
+      // Broadcast to others (they won't get updated history/redo counts from here, 
+      // but they track their own anyway - Wait, we should send them their own perspective?)
+      // To keep it simple, we just broadcast the action. The client's reducer will handle its own counts.
+      // Wait, the client's reducer relies on historyCount from server.
+      // This is the tricky part. Let's send a payload that tells the client AND others.
+      
+      // Send personalized payload to the sender
+      socket.emit("board-action", createPayload(session, action, socket.data.userId));
+      
+      // Broadcast action to others (targetUserId null means counts aren't updated on their end via this message)
+      socket.to(roomId).emit("board-action", createPayload(session, action, null));
       
       // Persist if it's a significant change
       if (action.type !== "cursor-move") {

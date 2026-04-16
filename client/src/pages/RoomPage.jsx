@@ -78,6 +78,7 @@ export default function RoomPage() {
   const [shareMessage, setShareMessage] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [wasmEngine, setWasmEngine] = useState(null);
+  const [showDrawer, setShowDrawer] = useState(false);
 
   // 1. Initialize Wasm Engine
   useEffect(() => {
@@ -99,25 +100,45 @@ export default function RoomPage() {
   }, [dispatch, user]);
 
   // 2. CRDT Action Handler
-  const handleBoardAction = useCallback((payload) => {
+  const handleBoardAction = useCallback((payload, isUndo = false) => {
     if (!wasmEngine) return;
     const { instance, Module } = wasmEngine;
 
-    // Standardize: Extract action from payload (server wraps it, local might not)
+    // Standardize: Extract action from payload
     const action = payload.action || payload;
-    const item = action.item || action.nextItem;
 
-    if (action.type === "create-item" || action.type === "update-item") {
-      const vectorPos = new Module.VectorInt();
-      const position = item.fractionalPosition || [50];
-      position.forEach(val => vectorPos.push_back(val));
-      
-      instance.addElement(item.id, vectorPos, item.userId, item);
-      vectorPos.delete();
-    } else if (action.type === "delete-item") {
-      instance.deleteElement(item.id);
-    } else if (action.type === "clear-board") {
-      instance.clearBoard();
+    if (isUndo) {
+      if (action.type === "create-item") {
+        instance.deleteElement(action.item.id);
+      } else if (action.type === "delete-item") {
+        const item = action.item;
+        const v = new Module.VectorInt();
+        (item.fractionalPosition || [50]).forEach(val => v.push_back(val));
+        instance.addElement(item.id, v, item.userId, item);
+        v.delete();
+      } else if (action.type === "update-item") {
+        // Revert to previous
+        const item = action.previousItem;
+        const v = new Module.VectorInt();
+        (item.fractionalPosition || [50]).forEach(val => v.push_back(val));
+        instance.addElement(item.id, v, item.userId, item);
+        v.delete();
+      }
+    } else {
+      const item = action.item || action.nextItem;
+
+      if (action.type === "create-item" || action.type === "update-item") {
+        const vectorPos = new Module.VectorInt();
+        const position = item.fractionalPosition || [50];
+        position.forEach(val => vectorPos.push_back(val));
+        
+        instance.addElement(item.id, vectorPos, item.userId, item);
+        vectorPos.delete();
+      } else if (action.type === "delete-item") {
+        instance.deleteElement(item.id);
+      } else if (action.type === "clear-board") {
+        instance.clearBoard();
+      }
     }
 
     const orderedItems = instance.getOrderedElements();
@@ -130,9 +151,6 @@ export default function RoomPage() {
         redoCount: payload.redoCount
       }
     });
-
-    // If it's a cursor move, we don't need to re-sort or hydrate the board items necessarily,
-    // but the reducer handles UPSERT_CURSOR separately.
   }, [wasmEngine, dispatch]);
 
   // 3. Socket Listeners with proper State Sync
@@ -164,8 +182,8 @@ export default function RoomPage() {
       dispatch({ type: "SET_PARTICIPANTS", payload: p.participants || [] });
     };
 
-    const handleUndo = (p) => dispatch({ type: "APPLY_UNDO", payload: p });
-    const handleRedo = (p) => dispatch({ type: "APPLY_REDO", payload: p });
+    const handleUndo = (p) => handleBoardAction(p, true);
+    const handleRedo = (p) => handleBoardAction(p, false);
     const handleCursorMove = (p) => {
       console.log("📍 Received cursor move:", p);
       dispatch({ type: "UPSERT_CURSOR", payload: p });
@@ -227,10 +245,39 @@ export default function RoomPage() {
     v1.delete(); v2.delete(); newPosVector.delete();
   };
 
+  const handleLocalDelete = (item) => {
+    if (!wasmEngine || !socket) return;
+    const payload = { type: "delete-item", item };
+    socket.emit("board-action", payload);
+    handleBoardAction(payload);
+  };
+
+  const handleLocalUpdate = (previousItem, nextItem) => {
+    if (!wasmEngine || !socket) return;
+    const payload = { type: "update-item", previousItem, nextItem };
+    socket.emit("board-action", payload);
+    handleBoardAction(payload);
+  };
+
   // Helper Functions
   const setTool = (t) => dispatch({ type: "SET_TOOL", payload: t });
   const isDrawToolActive = drawTools.some((e) => e.id === state.tool);
-  const handlePrimaryToolSelect = (t) => t === "draw" ? setTool(state.lastDrawTool || "pen") : setTool(t);
+  const handlePrimaryToolSelect = (t) => {
+    if (t === "draw") {
+      setShowDrawer((prev) => !prev);
+      if (!isDrawToolActive) {
+        setTool(state.lastDrawTool || "pen");
+      }
+    } else {
+      setShowDrawer(false);
+      setTool(t);
+    }
+  };
+
+  const handleSecondaryToolSelect = (t) => {
+    setTool(t);
+  };
+
   const setViewport = (v) => dispatch({ type: "SET_VIEWPORT", payload: v });
   const zoom = (m) => setViewport(zoomViewportAtPoint(state.viewport, clampZoom(state.viewport.scale * m), { x: window.innerWidth / 2, y: window.innerHeight / 2 }));
 
@@ -244,6 +291,8 @@ export default function RoomPage() {
     <main className="room-page">
       <CanvasBoard
         onDraw={handleLocalDraw}
+        onDelete={handleLocalDelete}
+        onUpdate={handleLocalUpdate}
         items={state.items}
         cursors={state.cursors}
         socket={socket}
@@ -351,12 +400,12 @@ export default function RoomPage() {
         ))}
       </aside>
 
-      {isDrawToolActive && (
+      {showDrawer && (
         <aside className="floating-rail floating-rail--secondary">
           <span className="rail-title">Draw</span>
           <div className="draw-tool-grid">
             {drawTools.map((entry) => (
-              <button key={entry.id} type="button" className={state.tool === entry.id ? "rail-button rail-button--card is-active" : "rail-button rail-button--card"} onClick={() => setTool(entry.id)}>
+              <button key={entry.id} type="button" className={state.tool === entry.id ? "rail-button rail-button--card is-active" : "rail-button rail-button--card"} onClick={() => handleSecondaryToolSelect(entry.id)}>
                 <span className="rail-button__icon"><BoardIcon name={entry.id} /></span>
                 <span className="rail-button__label">{entry.label}</span>
               </button>
