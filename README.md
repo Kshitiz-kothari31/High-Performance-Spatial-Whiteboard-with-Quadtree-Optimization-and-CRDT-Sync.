@@ -83,7 +83,7 @@ Start the frontend in a second terminal:
 npm run dev:client
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Open https://high-performance-spatial-whiteboard-with.onrender.com
 
 ## How Real-Time Sync Works
 
